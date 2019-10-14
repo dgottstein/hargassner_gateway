@@ -1,23 +1,20 @@
+import re
 import xml.etree.ElementTree as ET
 
 def parse_header_information(filename):
-    # Parse part of the xml file
+    # Extract xml part from DAQ file
     parsing_string = ""
+    temp_string = ""
     with open(filename) as xmlfile:
         start_found = False
         for line in xmlfile:
-            beginstr = line.split("<DAQPRJ>")
-            endstr = line.split("</DAQPRJ>")
-            if len(beginstr) > 1:
-                parsing_string += "<DAQPRJ>" + beginstr[1]
-                start_found = True
-            elif len(endstr) > 1:
-                parsing_string += endstr[0] + "</DAQPRJ>"
+            match = re.search(r'<DAQPRJ>.*?</DAQPRJ>', temp_string, re.DOTALL|re.IGNORECASE)
+            if match != None:
+                parsing_string = match.group(0)
                 break
-            elif start_found:
-                parsing_string += line
+            temp_string += line
 
-    # Extract analog and digital channel information
+    # Parse and extract analog and digital channel information from xml part
     root = ET.fromstring(parsing_string)
     analog_channels = [];
     digital_channels = [];
