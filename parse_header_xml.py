@@ -16,15 +16,22 @@ def parse_header_information(filename):
 
     # Parse and extract analog and digital channel information from xml part
     root = ET.fromstring(parsing_string)
-    analog_channels = [];
-    digital_channels = [];
+    analog_channels = {};
+    digital_channels = {};
     for child in root:
-        for analogchild in child:
-            if analogchild.tag == "CHANNEL":
+        for channel in child:
+            if channel.tag == "CHANNEL":
+                id = int(channel.attrib['id'])
                 if child.tag == "ANALOG":
-                    analog_channels.append(analogchild.attrib)
+                    analog_channels[id] = channel.attrib
+                    del analog_channels[id]['id']
                 elif child.tag == "DIGITAL":
-                    digital_channels.append(analogchild.attrib)
+                    bit = int(channel.attrib['bit'])
+                    if id not in digital_channels:
+                        digital_channels[id] = {}
+                    digital_channels[id][bit] = channel.attrib
+                    del digital_channels[id][bit]['id']
+                    del digital_channels[id][bit]['bit']
 
     return_dict = {"analog":analog_channels, "digital":digital_channels}
     return(return_dict)
