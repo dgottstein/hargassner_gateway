@@ -28,3 +28,13 @@ def compare_parsed_data(old_data, new_data):
                 diff_data[key] = new_data[key]
     return diff_data
 
+
+def parse_file(filename, channel_infos):
+    old_data = {}
+    with open(filename) as myfile:
+        for line in myfile:
+            new_data = parse_line(line, channel_infos)
+            print(compare_parsed_data(old_data, new_data))
+            print('\n')
+            old_data = new_data
+
