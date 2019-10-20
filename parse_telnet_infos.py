@@ -1,5 +1,6 @@
 import binascii
 from parse_header_xml import parse_header_information
+from telnetlib import Telnet
 
 def parse_line(line_string, channel_information):
     splitted = line_string.split(' ')
@@ -36,5 +37,16 @@ def parse_file(filename, channel_infos):
             new_data = parse_line(line, channel_infos)
             print(compare_parsed_data(old_data, new_data))
             print('\n')
+            old_data = new_data
+
+
+def connect_and_parse(ip_address, channel_infos):
+    old_data = {}
+    with Telnet(ip_address, 23) as tn:
+        while True:
+            data_str = tn.read_until(b"\n").decode('ascii').strip()
+            new_data = parse_line(data_str, channel_infos)
+            print(compare_parsed_data(old_data, new_data))
+            print('\n', flush=True)
             old_data = new_data
 
