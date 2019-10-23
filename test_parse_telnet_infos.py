@@ -1,4 +1,4 @@
-from parse_telnet_infos import parse_line, compare_parsed_data, parse_file, connect_and_parse
+from parse_telnet_infos import parse_line, compare_parsed_data, parse_file, connect_and_parse, import_config_file
 from parse_header_xml import parse_header_information
 
 
@@ -64,8 +64,13 @@ else:
 print("\n")
 
 
+print("Testing parse_line(test_line1, partial_channel_infos)")
+result = import_config_file("config.json")
+print(result)
+
+
 #print("Testing parse_file('test\\telnet_data\\putty.log', channel_infos)")
 #parse_file('test\\telnet_data\\putty.log', full_channel_infos)
 
 
-connect_and_parse('10.0.0.25', full_channel_infos)
+#connect_and_parse('10.0.0.25', full_channel_infos)

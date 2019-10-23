@@ -1,6 +1,8 @@
 import binascii
 from parse_header_xml import parse_header_information
 from telnetlib import Telnet
+import commentjson
+
 
 def parse_line(line_string, channel_information):
     splitted = line_string.split(' ')
@@ -50,3 +52,8 @@ def connect_and_parse(ip_address, channel_infos):
             print('\n', flush=True)
             old_data = new_data
 
+
+def import_config_file(filename):
+    with open(filename) as infile:
+        d = commentjson.load(infile)
+    return d

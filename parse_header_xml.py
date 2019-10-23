@@ -1,5 +1,6 @@
 import re
 import xml.etree.ElementTree as ET
+import json
 
 def parse_header_information(filename):
     # Extract xml part from DAQ file
@@ -35,3 +36,11 @@ def parse_header_information(filename):
 
     return_dict = {"analog":analog_channels, "digital":digital_channels}
     return(return_dict)
+
+def generate_channel_config(channel_infos, general_config, output_filename):
+    output = []
+    for analog_channel in channel_infos["analog"]:
+        data = general_config["default_channel_config"].copy()
+        data["title"] = general_config["default_channel_config"] + analog_channel[]
+        output.append(data)
+    return json.dumps(output)
