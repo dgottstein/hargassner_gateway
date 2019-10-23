@@ -1,0 +1,16 @@
+{
+    // General settings
+    "uuid_prefix": "Hargassner",    // Used to create the UUIDs of each channel
+    "group_title": "Hargassner",    // Name of the group used in the vz frontend
+    
+    // Defaults if no specific configuration exists for a channel
+    "default_channel_config": {
+        "title_prefix": "",         // Title prefix shown in the vz frontend
+        "type": "universalsensor",  // Entity type e.g. universalsensor, temperature, ... (see https://wiki.volkszaehler.org/development/definitions )
+        "color": "aqua",            // see https://wiki.volkszaehler.org/software/middleware/einrichtung
+        "style": "lines",           // see https://wiki.volkszaehler.org/software/middleware/einrichtung
+        "fillstyle": 0,             // see https://wiki.volkszaehler.org/software/middleware/einrichtung
+        "yaxis": "auto",            // see https://wiki.volkszaehler.org/software/middleware/einrichtung
+        "public": 0                 // see https://wiki.volkszaehler.org/software/middleware/einrichtung
+    }
+}
