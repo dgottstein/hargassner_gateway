@@ -3,6 +3,10 @@ from telnetlib import Telnet
 import commentjson, json
 import re
 import xml.etree.ElementTree as ET
+import uuid
+import copy
+#import pymysql
+import mysql.connector
 
 
 def parse_line(line_string, channel_information):
@@ -97,9 +101,60 @@ def parse_header_information(filename):
 
 def generate_channel_config(channel_infos, general_config, output_filename):
     output = []
-    for analog_channel in channel_infos["analog"]:
+    for key, value in channel_infos["analog"].items():
         data = general_config["default_channel_config"].copy()
-        data["title"] = general_config["default_channel_config"] + analog_channel['id']
-        output.append(data)
-    return json.dumps(output)
+        data["type"] = "analog";
+        data["position"] = key;
+        data["vz"]["entities"]["uuid"] = str(uuid.uuid5(uuid.NAMESPACE_DNS, general_config["uuid_prefix"] + value["name"]))
+        data["vz"]["properties"]["title"] = general_config["default_channel_config"]["title_prefix"] + value["name"]
+        data["vz"]["properties"]["unit"] = value["unit"]
+        del(data["title_prefix"])
+        output.append(copy.deepcopy(data))
+    
+    for key, value in channel_infos["digital"].items():
+        for key2, value2 in value.items():
+            data = general_config["default_channel_config"].copy()
+            data["type"] = "digital"
+            data["position"] = key
+            data["bit"] = key2
+            data["vz"]["entities"]["uuid"] = str(uuid.uuid5(uuid.NAMESPACE_DNS, general_config["uuid_prefix"] + value2["name"]))
+            data["vz"]["properties"]["title"] = general_config["default_channel_config"]["title_prefix"] + value2["name"]
+            del(data["title_prefix"])
+            output.append(copy.deepcopy(data))
+    
+    output_str = json.dumps(output, sort_keys=True, indent=4)
+    
+    file_obj = open(output_filename,"w")
+    file_obj.write(output_str)
+    file_obj.close()
+    
+    return output_str
 
+def create_vz_channels(general_config, sql_connection, channel_config_filename, ):
+    group_uuid = str(uuid.uuid5(uuid.NAMESPACE_DNS, general_config["uuid_prefix"] + general_config["group_title"]))
+    cursor = sql_connection.cursor()    # prepare a cursor object using cursor() method
+    
+    sql = [];
+    
+    # add group and set properties
+    sql.append("INSERT INTO `entities` (`uuid`, `type`, `class`) VALUES (" + group_uuid + ", 'group', 'aggregator')")
+    sql.append("SET @group_id = LAST_INSERT_ID()")
+    sql.append("INSERT INTO `properties` (`entity_id`, `pkey`, `value`) VALUES (@group_id, 'public', '1'), (@group_id, 'title', '" + general_config["group_title"] + "')")
+    
+    with open(channel_config_filename) as infile:
+        d = json.load(infile)
+    
+    for value in d:
+        sql.append("INSERT INTO `entities` (`uuid`, `type`, `class`) VALUES ('" + value["vz"]["entities"]["uuid"] + "', '" + value["vz"]["entities"]["type"] + "', '" + value["vz"]["entities"]["class"] + "')")
+        sql.append("SET @channel_id = LAST_INSERT_ID()")
+        for prop_key, prop_val in value["vz"]["properties"].items():
+            sql.append("INSERT INTO `properties` (`entity_id`, `pkey`, `value`) VALUES (@channel_id, '" + str(prop_key) + "', '" + str(prop_val) + "')")
+        sql.append("INSERT INTO `entities_in_aggregator` (`parent_id`, `child_id`) VALUES (@group_id, @channel_id)")
+    
+    with sql_connection.cursor() as cursor:
+        cursor.execute(('; '.join(sql)), multi=True)
+    sql_connection.commit()
+
+# Open database connection
+db = pymysql.connect("homeserver","volkszaehler","meinPasswort","volkszaehler" )
+db2 = mysql.connector.connect(host='homeserver', database='volkszaehler', user='volkszaehler', password='meinPasswort', use_pure=True) # use pure Python implementation

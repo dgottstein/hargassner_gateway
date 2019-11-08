@@ -138,8 +138,24 @@ else:
 print("\n")
 
 
+
+
+channel_infos = hargassner.parse_header_information("test\\xml\\Full.DAQ")
+general_config = hargassner.import_config_file("test\\json\\config.json")
+hargassner.generate_channel_config(channel_infos, general_config, "channel_config.json")
+
+hargassner.create_vz_channels(general_config, hargassner.db2, "channel_config.json")
+
+
+
+
+
 #print("Testing parse_file('test\\telnet_data\\putty.log', channel_infos)")
 #parse_file('test\\telnet_data\\putty.log', full_channel_infos)
 
-
 #connect_and_parse('10.0.0.25', full_channel_infos)
+
+
+
+
+
