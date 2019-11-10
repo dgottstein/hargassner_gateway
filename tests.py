@@ -1,5 +1,11 @@
 import hargassner
-import sys, traceback
+import sys, traceback, mysql
+
+
+
+# Open database connection
+db = mysql.connector.connect(host='homeserver', database='volkszaehler', user='volkszaehler', password='meinPasswort', use_pure=True) # use pure Python implementation
+
 
 
 
@@ -142,18 +148,24 @@ print("\n")
 
 channel_infos = hargassner.parse_header_information("test\\xml\\Full.DAQ")
 general_config = hargassner.import_config_file("test\\json\\config.json")
-hargassner.generate_channel_config(channel_infos, general_config, "channel_config.json")
+#hargassner.generate_channel_config(general_config=general_config, 
+#                                   channel_infos=channel_infos, 
+#                                   output_filename="channel_config.json")
+channel_config = hargassner.import_config_file("channel_config.json")
+#hargassner.create_vz_channels(general_config=general_config, 
+#                              channel_config=channel_config,
+#                              sql_connection=db)
 
-hargassner.create_vz_channels(general_config, hargassner.db2, "channel_config.json")
 
 
+#print("Testing parse_logfile('test\\telnet_data\\putty.log', channel_infos)")
+#parse_logfile('test\\telnet_data\\putty.log', full_channel_infos)
 
 
-
-#print("Testing parse_file('test\\telnet_data\\putty.log', channel_infos)")
-#parse_file('test\\telnet_data\\putty.log', full_channel_infos)
-
-#connect_and_parse('10.0.0.25', full_channel_infos)
+hargassner.connect_and_log_data(ip_address='10.0.0.25', 
+                                channel_infos=channel_infos, 
+                                channel_config=channel_config, 
+                                sql_connection=db)
 
 
 

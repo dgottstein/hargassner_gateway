@@ -7,19 +7,21 @@ import uuid
 import copy
 #import pymysql
 import mysql.connector
+from mysql.connector.cursor import MySQLCursor
+import time
 
 
-def parse_line(line_string, channel_information):
+def parse_line(line_string, channel_infos):
     splitted = line_string.split(' ')
     parsed_data = {}
     
-    for analog_key in channel_information['analog']:
-        tmp_data = channel_information['analog'][analog_key]
+    for analog_key in channel_infos['analog']:
+        tmp_data = channel_infos['analog'][analog_key]
         parsed_data[tmp_data['name']] = {'value': splitted[analog_key+1], 'unit': tmp_data['unit']}
     
-    for digital_key in channel_information['digital']:
-        offset = digital_key + max(channel_information['analog'].keys()) + 2
-        tmp_infos = channel_information['digital'][digital_key]
+    for digital_key in channel_infos['digital']:
+        offset = digital_key + max(channel_infos['analog'].keys()) + 2
+        tmp_infos = channel_infos['digital'][digital_key]
         for info_key in tmp_infos:
             value = 0
             if int.from_bytes(binascii.unhexlify(splitted[offset]), "big") & (1 << info_key):
@@ -37,7 +39,7 @@ def compare_parsed_data(old_data, new_data):
     return diff_data
 
 
-def parse_file(filename, channel_infos):
+def parse_logfile(filename, channel_infos):
     old_data = {}
     with open(filename) as myfile:
         for line in myfile:
@@ -55,6 +57,31 @@ def connect_and_parse(ip_address, channel_infos):
             new_data = parse_line(data_str, channel_infos)
             print(compare_parsed_data(old_data, new_data))
             print('\n', flush=True)
+            old_data = new_data
+
+
+def connect_and_log_data(ip_address, channel_infos, channel_config, sql_connection):
+    old_data = {}
+    cursor = sql_connection.cursor()    # prepare a cursor object using cursor() method
+    
+    with Telnet(ip_address, 23) as tn:
+        while True:
+            data_str = tn.read_until(b"\n").decode('ascii').strip()
+            timestamp = round(time.time() * 1000)
+            sql = []
+            new_data = parse_line(data_str, channel_infos)
+            diff_data = compare_parsed_data(old_data, new_data)
+            for key, value in diff_data.items():
+                uuid = channel_config[key]["vz"]["entities"]["uuid"]
+                sql.append("INSERT INTO `data` (`channel_id`, `timestamp`, `value`) VALUES ((SELECT `id` FROM `entities` WHERE `uuid` LIKE '" + uuid + "' LIMIT 1), '" + str(timestamp) + "', '" + str(value["value"]) + "')")
+            
+            if (len(sql) > 0):
+                print((';\n'.join(sql)), flush=True)
+                result = cursor.execute((';\n'.join(sql)), multi=True)
+                sql_connection.commit()
+                for record in result:
+                    print(record)
+            
             old_data = new_data
 
 
@@ -99,8 +126,9 @@ def parse_header_information(filename):
     return_dict = {"analog":analog_channels, "digital":digital_channels}
     return(return_dict)
 
-def generate_channel_config(channel_infos, general_config, output_filename):
-    output = []
+
+def generate_channel_config(general_config, channel_infos, output_filename):
+    output = {}
     for key, value in channel_infos["analog"].items():
         data = general_config["default_channel_config"].copy()
         data["type"] = "analog";
@@ -109,7 +137,7 @@ def generate_channel_config(channel_infos, general_config, output_filename):
         data["vz"]["properties"]["title"] = general_config["default_channel_config"]["title_prefix"] + value["name"]
         data["vz"]["properties"]["unit"] = value["unit"]
         del(data["title_prefix"])
-        output.append(copy.deepcopy(data))
+        output[value["name"]] = copy.deepcopy(data)
     
     for key, value in channel_infos["digital"].items():
         for key2, value2 in value.items():
@@ -120,7 +148,7 @@ def generate_channel_config(channel_infos, general_config, output_filename):
             data["vz"]["entities"]["uuid"] = str(uuid.uuid5(uuid.NAMESPACE_DNS, general_config["uuid_prefix"] + value2["name"]))
             data["vz"]["properties"]["title"] = general_config["default_channel_config"]["title_prefix"] + value2["name"]
             del(data["title_prefix"])
-            output.append(copy.deepcopy(data))
+            output[value2["name"]] = copy.deepcopy(data)
     
     output_str = json.dumps(output, sort_keys=True, indent=4)
     
@@ -130,31 +158,30 @@ def generate_channel_config(channel_infos, general_config, output_filename):
     
     return output_str
 
-def create_vz_channels(general_config, sql_connection, channel_config_filename, ):
+
+def create_vz_channels(general_config, channel_config, sql_connection):
     group_uuid = str(uuid.uuid5(uuid.NAMESPACE_DNS, general_config["uuid_prefix"] + general_config["group_title"]))
     cursor = sql_connection.cursor()    # prepare a cursor object using cursor() method
     
     sql = [];
     
     # add group and set properties
-    sql.append("INSERT INTO `entities` (`uuid`, `type`, `class`) VALUES (" + group_uuid + ", 'group', 'aggregator')")
+    sql.append("INSERT INTO `entities` (`uuid`, `type`, `class`) VALUES ('" + group_uuid + "', 'group', 'aggregator')")
     sql.append("SET @group_id = LAST_INSERT_ID()")
     sql.append("INSERT INTO `properties` (`entity_id`, `pkey`, `value`) VALUES (@group_id, 'public', '1'), (@group_id, 'title', '" + general_config["group_title"] + "')")
     
-    with open(channel_config_filename) as infile:
-        d = json.load(infile)
-    
-    for value in d:
+    for value in channel_config:
         sql.append("INSERT INTO `entities` (`uuid`, `type`, `class`) VALUES ('" + value["vz"]["entities"]["uuid"] + "', '" + value["vz"]["entities"]["type"] + "', '" + value["vz"]["entities"]["class"] + "')")
         sql.append("SET @channel_id = LAST_INSERT_ID()")
         for prop_key, prop_val in value["vz"]["properties"].items():
             sql.append("INSERT INTO `properties` (`entity_id`, `pkey`, `value`) VALUES (@channel_id, '" + str(prop_key) + "', '" + str(prop_val) + "')")
         sql.append("INSERT INTO `entities_in_aggregator` (`parent_id`, `child_id`) VALUES (@group_id, @channel_id)")
     
-    with sql_connection.cursor() as cursor:
-        cursor.execute(('; '.join(sql)), multi=True)
+    result = cursor.execute((';\n'.join(sql)), multi=True)
     sql_connection.commit()
+    for record in result:
+        print(record)
+    sql_connection.commit()
+    
+    cursor.close()
 
-# Open database connection
-db = pymysql.connect("homeserver","volkszaehler","meinPasswort","volkszaehler" )
-db2 = mysql.connector.connect(host='homeserver', database='volkszaehler', user='volkszaehler', password='meinPasswort', use_pure=True) # use pure Python implementation
