@@ -9,6 +9,7 @@ import copy
 import mysql.connector
 from mysql.connector.cursor import MySQLCursor
 import time
+import sys
 
 
 def parse_line(line_string, channel_infos):
@@ -66,21 +67,25 @@ def connect_and_log_data(ip_address, channel_infos, channel_config, sql_connecti
     
     with Telnet(ip_address, 23) as tn:
         while True:
-            data_str = tn.read_until(b"\n").decode('ascii').strip()
-            timestamp = round(time.time() * 1000)
-            sql = []
-            new_data = parse_line(data_str, channel_infos)
-            diff_data = compare_parsed_data(old_data, new_data)
-            for key, value in diff_data.items():
-                uuid = channel_config[key]["vz"]["entities"]["uuid"]
-                sql.append("INSERT INTO `data` (`channel_id`, `timestamp`, `value`) VALUES ((SELECT `id` FROM `entities` WHERE `uuid` LIKE '" + uuid + "' LIMIT 1), '" + str(timestamp) + "', '" + str(value["value"]) + "')")
-            
-            if (len(sql) > 0):
-                print((';\n'.join(sql)), flush=True)
-                result = cursor.execute((';\n'.join(sql)), multi=True)
-                sql_connection.commit()
-                for record in result:
-                    print(record)
+            new_data = {}
+            try:
+                data_str = tn.read_until(b"\n").decode('ascii').strip()
+                timestamp = round(time.time() * 1000)
+                sql = []
+                new_data = parse_line(data_str, channel_infos)
+                diff_data = compare_parsed_data(old_data, new_data)
+                for key, value in diff_data.items():
+                    uuid = channel_config[key]["vz"]["entities"]["uuid"]
+                    sql.append("INSERT INTO `data` (`channel_id`, `timestamp`, `value`) VALUES ((SELECT `id` FROM `entities` WHERE `uuid` LIKE '" + uuid + "' LIMIT 1), '" + str(timestamp) + "', '" + str(value["value"]) + "')")
+                
+                if (len(sql) > 0):
+                    print((';\n'.join(sql)), flush=True)
+                    result = cursor.execute((';\n'.join(sql)), multi=True)
+                    sql_connection.commit()
+                    for record in result:
+                        print(record)
+            except:
+                print("Unexpected error:", sys.exc_info())
             
             old_data = new_data
 
