@@ -6,5 +6,5 @@ db = mysql.connector.connect(host='homeserver', database='volkszaehler', user='v
 
 channel_infos = hargassner.parse_header_information("test\\xml\\Full.DAQ")
 channel_config = hargassner.import_config_file("channel_config.json")
-hargassner.connect_and_log_data(ip_address='10.0.0.25', channel_infos=channel_infos, channel_config=channel_config, sql_connection=db)
+hargassner.connect_and_log_data(ip_address='HSV1', channel_infos=channel_infos, channel_config=channel_config, sql_connection=db)
 
