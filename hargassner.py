@@ -82,8 +82,11 @@ def connect_and_log_data(ip_address, channel_infos, channel_config, sql_connecti
                     print((';\n'.join(sql)), flush=True)
                     result = cursor.execute((';\n'.join(sql)), multi=True)
                     sql_connection.commit()
-                    for record in result:
-                        print(record)
+                    try:
+                        for record in result:
+                            print(record)
+                    except RuntimeError:
+                        pass    # TODO / FIXME: try to not raise StopIteration exception
             except:
                 print("Unexpected error:", sys.exc_info())
             
