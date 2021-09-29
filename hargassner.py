@@ -10,6 +10,7 @@ import mysql.connector
 from mysql.connector.cursor import MySQLCursor
 import time
 import sys
+import traceback
 
 
 def parse_line(line_string, channel_infos):
@@ -46,7 +47,7 @@ def parse_logfile(filename, channel_infos):
         for line in myfile:
             new_data = parse_line(line, channel_infos)
             print(compare_parsed_data(old_data, new_data))
-            print('\n')
+            print('\n', flush=True)
             old_data = new_data
 
 
@@ -71,26 +72,52 @@ def connect_and_log_data(ip_address, channel_infos, channel_config, sql_connecti
             try:
                 data_str = tn.read_until(b"\n").decode('ascii').strip()
                 timestamp = round(time.time() * 1000)
-                sql = []
+                #sql = []
                 new_data = parse_line(data_str, channel_infos)
                 diff_data = compare_parsed_data(old_data, new_data)
                 for key, value in diff_data.items():
-                    uuid = channel_config[key]["vz"]["entities"]["uuid"]
-                    sql.append("INSERT INTO `data` (`channel_id`, `timestamp`, `value`) VALUES ((SELECT `id` FROM `entities` WHERE `uuid` LIKE '" + uuid + "' LIMIT 1), '" + str(timestamp) + "', '" + str(value["value"]) + "')")
-                
-                if (len(sql) > 0):
-                    print((';\n'.join(sql)), flush=True)
-                    result = cursor.execute((';\n'.join(sql)), multi=True)
-                    sql_connection.commit()
                     try:
-                        for record in result:
-                            print(record)
-                    except RuntimeError:
-                        pass    # TODO / FIXME: try to not raise StopIteration exception
+                        uuid = channel_config[key]["vz"]["entities"]["uuid"]
+                        sql_current = "INSERT INTO `data` (`channel_id`, `timestamp`, `value`) VALUES ((SELECT `id` FROM `entities` WHERE `uuid` LIKE '" + uuid + "' LIMIT 1), '" + str(timestamp) + "', '" + str(value["value"]) + "');"
+                        try:
+                            for result in cursor.execute(sql_current, multi=True):
+                                if result.with_rows:
+                                    print("Rows produced by statement '{}':".format(result.statement))
+                                    print(result.fetchall(), flush=True)
+                                elif result.rowcount != 1:
+                                    print("Number of rows affected by statement '{}': {}".format(result.statement, result.rowcount), flush=True)
+                        except RuntimeError:
+                            pass    # TODO / FIXME: try to not raise StopIteration exception
+                    except:
+                        print("Unexpected sql error:", sys.exc_info(), sql_current, flush=True)
+                        print(traceback.format_exc(), flush=True)
+                    #try:
+                    #    result = cursor.execute(sql_current)
+                    #    sql_connection.commit()
+                    #    try:
+                    #        print(result, flush=True)
+                    #    except RuntimeError:
+                    #        pass    # TODO / FIXME: try to not raise StopIteration exception
+                    #except:
+                    #    print("Unexpected sql error:", sys.exc_info(), sql_current, flush=True)
+                    #    print(traceback.format_exc(), flush=True)
+                    #sql.append("INSERT INTO `data` (`channel_id`, `timestamp`, `value`) VALUES ((SELECT `id` FROM `entities` WHERE `uuid` LIKE '" + uuid + "' LIMIT 1), '" + str(timestamp) + "', '" + str(value["value"]) + "')")
+                
+                #if (len(sql) > 0):
+                #    print((';\n'.join(sql)), flush=True)
+                #    result = cursor.execute((';\n'.join(sql)), multi=True)
+                #    sql_connection.commit()
+                #    try:
+                #        for record in result:
+                #            print(record)
+                #    except RuntimeError:
+                #        pass    # TODO / FIXME: try to not raise StopIteration exception
             except:
-                print("Unexpected error:", sys.exc_info())
+                print("Unexpected error:", sys.exc_info(), flush=True)
+                print(traceback.format_exc(), flush=True)
             
             old_data = new_data
+    cursor.close()
 
 
 def import_config_file(filename):
@@ -174,21 +201,21 @@ def create_vz_channels(general_config, channel_config, sql_connection):
     sql = [];
     
     # add group and set properties
-    sql.append("INSERT INTO `entities` (`uuid`, `type`, `class`) VALUES ('" + group_uuid + "', 'group', 'aggregator')")
+    sql.append("INSERT IGNORE INTO `entities` (`uuid`, `type`, `class`) VALUES ('" + group_uuid + "', 'group', 'aggregator')")
     sql.append("SET @group_id = LAST_INSERT_ID()")
-    sql.append("INSERT INTO `properties` (`entity_id`, `pkey`, `value`) VALUES (@group_id, 'public', '1'), (@group_id, 'title', '" + general_config["group_title"] + "')")
+    sql.append("INSERT IGNORE INTO `properties` (`entity_id`, `pkey`, `value`) VALUES (@group_id, 'public', '1'), (@group_id, 'title', '" + str(general_config["group_title"]) + "')")
     
     for value in channel_config:
-        sql.append("INSERT INTO `entities` (`uuid`, `type`, `class`) VALUES ('" + value["vz"]["entities"]["uuid"] + "', '" + value["vz"]["entities"]["type"] + "', '" + value["vz"]["entities"]["class"] + "')")
+        sql.append("INSERT IGNORE INTO `entities` (`uuid`, `type`, `class`) VALUES ('" + str(channel_config[value]["vz"]["entities"]["uuid"]) + "', '" + str(channel_config[value]["vz"]["entities"]["type"]) + "', '" + str(channel_config[value]["vz"]["entities"]["class"]) + "')")
         sql.append("SET @channel_id = LAST_INSERT_ID()")
-        for prop_key, prop_val in value["vz"]["properties"].items():
-            sql.append("INSERT INTO `properties` (`entity_id`, `pkey`, `value`) VALUES (@channel_id, '" + str(prop_key) + "', '" + str(prop_val) + "')")
-        sql.append("INSERT INTO `entities_in_aggregator` (`parent_id`, `child_id`) VALUES (@group_id, @channel_id)")
+        for prop_key, prop_val in channel_config[value]["vz"]["properties"].items():
+            sql.append("INSERT IGNORE INTO `properties` (`entity_id`, `pkey`, `value`) VALUES (@channel_id, '" + str(prop_key) + "', '" + str(prop_val) + "')")
+        sql.append("INSERT IGNORE INTO `entities_in_aggregator` (`parent_id`, `child_id`) VALUES (@group_id, @channel_id)")
     
-    result = cursor.execute((';\n'.join(sql)), multi=True)
-    sql_connection.commit()
-    for record in result:
-        print(record)
+    print('SQL:', flush=True)
+    print(';\n'.join(sql), flush=True)
+    
+    results = cursor.execute((';\n'.join(sql)), multi=True)
     sql_connection.commit()
     
     cursor.close()
