@@ -86,6 +86,7 @@ def connect_and_log_data(ip_address, channel_infos, channel_config, sql_connecti
                                     print(result.fetchall(), flush=True)
                                 elif result.rowcount != 1:
                                     print("Number of rows affected by statement '{}': {}".format(result.statement, result.rowcount), flush=True)
+                                print("ID: {}".format(cursor.lastrowid), flush=True)
                         except RuntimeError:
                             pass    # TODO / FIXME: try to not raise StopIteration exception
                     except:
