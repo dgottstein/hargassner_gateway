@@ -14,3 +14,6 @@ channel_config = hargassner.import_config_file("channel_config.json")
 print("Connecting to and logging data from 'HSV1'", flush=True)
 hargassner.connect_and_log_data(ip_address='HSV1', channel_infos=channel_infos, channel_config=channel_config, sql_connection=db)
 
+print("Closing database connection", flush=True)
+db.close();
+

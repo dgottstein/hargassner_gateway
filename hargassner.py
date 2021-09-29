@@ -86,12 +86,13 @@ def connect_and_log_data(ip_address, channel_infos, channel_config, sql_connecti
                                     print(result.fetchall(), flush=True)
                                 elif result.rowcount != 1:
                                     print("Number of rows affected by statement '{}': {}".format(result.statement, result.rowcount), flush=True)
-                                print("ID: {}".format(cursor.lastrowid), flush=True)
                         except RuntimeError:
                             pass    # TODO / FIXME: try to not raise StopIteration exception
+                        sql_connection.commit()
                     except:
                         print("Unexpected sql error:", sys.exc_info(), sql_current, flush=True)
                         print(traceback.format_exc(), flush=True)
+                print("ID: {}".format(sql_connection.insert_id()), flush=True)
                     #try:
                     #    result = cursor.execute(sql_current)
                     #    sql_connection.commit()
