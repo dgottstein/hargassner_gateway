@@ -92,7 +92,16 @@ def connect_and_log_data(ip_address, channel_infos, channel_config, sql_connecti
                     except:
                         print("Unexpected sql error:", sys.exc_info(), sql_current, flush=True)
                         print(traceback.format_exc(), flush=True)
-                print("ID: {}".format(sql_connection.insert_id()), flush=True)
+                
+                # print latest ID for debuglog
+                insertId = -1;
+                try:
+                    insertId = cursor.lastrowid
+                    insertId = sql_connection.insert_id()
+                except:
+                    pass
+                print("ID: {}".format(insertId), flush=True)
+                
                     #try:
                     #    result = cursor.execute(sql_current)
                     #    sql_connection.commit()
