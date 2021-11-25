@@ -66,68 +66,80 @@ def connect_and_log_data(ip_address, channel_infos, channel_config, sql_connecti
     old_data = {}
     cursor = sql_connection.cursor()    # prepare a cursor object using cursor() method
     
-    with Telnet(ip_address, 23) as tn:
-        while True:
-            new_data = {}
-            try:
-                data_str = tn.read_until(b"\n").decode('ascii').strip()
-                timestamp = round(time.time() * 1000)
-                #sql = []
-                new_data = parse_line(data_str, channel_infos)
-                diff_data = compare_parsed_data(old_data, new_data)
-                for key, value in diff_data.items():
+    while True:
+        try:
+            with Telnet(ip_address, 23) as tn:
+                while True:
+                    new_data = {}
                     try:
-                        uuid = channel_config[key]["vz"]["entities"]["uuid"]
-                        sql_current = "INSERT INTO `data` (`channel_id`, `timestamp`, `value`) VALUES ((SELECT `id` FROM `entities` WHERE `uuid` LIKE '" + uuid + "' LIMIT 1), '" + str(timestamp) + "', '" + str(value["value"]) + "');"
+                        data_str = tn.read_until(b"\n").decode('ascii').strip()
+                        timestamp = round(time.time() * 1000)
+                        #sql = []
+                        new_data = parse_line(data_str, channel_infos)
+                        diff_data = compare_parsed_data(old_data, new_data)
+                        for key, value in diff_data.items():
+                            try:
+                                uuid = channel_config[key]["vz"]["entities"]["uuid"]
+                                sql_current = "INSERT INTO `data` (`channel_id`, `timestamp`, `value`) VALUES ((SELECT `id` FROM `entities` WHERE `uuid` LIKE '" + uuid + "' LIMIT 1), '" + str(timestamp) + "', '" + str(value["value"]) + "');"
+                                try:
+                                    for result in cursor.execute(sql_current, multi=True):
+                                        if result.with_rows:
+                                            print("Rows produced by statement '{}':".format(result.statement))
+                                            print(result.fetchall(), flush=True)
+                                        elif result.rowcount != 1:
+                                            print("Number of rows affected by statement '{}': {}".format(result.statement, result.rowcount), flush=True)
+                                except RuntimeError:
+                                    pass    # TODO / FIXME: try to not raise StopIteration exception
+                                sql_connection.commit()
+                            except:
+                                print("Unexpected sql error:", sys.exc_info(), sql_current, flush=True)
+                                print(traceback.format_exc(), flush=True)
+                        
+                        # print latest ID for debuglog
+                        insertId = -1;
                         try:
-                            for result in cursor.execute(sql_current, multi=True):
-                                if result.with_rows:
-                                    print("Rows produced by statement '{}':".format(result.statement))
-                                    print(result.fetchall(), flush=True)
-                                elif result.rowcount != 1:
-                                    print("Number of rows affected by statement '{}': {}".format(result.statement, result.rowcount), flush=True)
-                        except RuntimeError:
-                            pass    # TODO / FIXME: try to not raise StopIteration exception
-                        sql_connection.commit()
-                    except:
-                        print("Unexpected sql error:", sys.exc_info(), sql_current, flush=True)
-                        print(traceback.format_exc(), flush=True)
-                
-                # print latest ID for debuglog
-                insertId = -1;
-                try:
-                    insertId = cursor.lastrowid
-                    insertId = sql_connection.insert_id()
-                except:
-                    pass
-                print("ID: {}".format(insertId), flush=True)
-                
-                    #try:
-                    #    result = cursor.execute(sql_current)
-                    #    sql_connection.commit()
-                    #    try:
-                    #        print(result, flush=True)
-                    #    except RuntimeError:
-                    #        pass    # TODO / FIXME: try to not raise StopIteration exception
-                    #except:
-                    #    print("Unexpected sql error:", sys.exc_info(), sql_current, flush=True)
-                    #    print(traceback.format_exc(), flush=True)
-                    #sql.append("INSERT INTO `data` (`channel_id`, `timestamp`, `value`) VALUES ((SELECT `id` FROM `entities` WHERE `uuid` LIKE '" + uuid + "' LIMIT 1), '" + str(timestamp) + "', '" + str(value["value"]) + "')")
-                
-                #if (len(sql) > 0):
-                #    print((';\n'.join(sql)), flush=True)
-                #    result = cursor.execute((';\n'.join(sql)), multi=True)
-                #    sql_connection.commit()
-                #    try:
-                #        for record in result:
-                #            print(record)
-                #    except RuntimeError:
-                #        pass    # TODO / FIXME: try to not raise StopIteration exception
-            except:
-                print("Unexpected error:", sys.exc_info(), flush=True)
-                print(traceback.format_exc(), flush=True)
+                            insertId = cursor.lastrowid
+                            insertId = sql_connection.insert_id()
+                        except:
+                            pass
+                        print("ID: {}".format(insertId), flush=True)
+                        
+                            #try:
+                            #    result = cursor.execute(sql_current)
+                            #    sql_connection.commit()
+                            #    try:
+                            #        print(result, flush=True)
+                            #    except RuntimeError:
+                            #        pass    # TODO / FIXME: try to not raise StopIteration exception
+                            #except:
+                            #    print("Unexpected sql error:", sys.exc_info(), sql_current, flush=True)
+                            #    print(traceback.format_exc(), flush=True)
+                            #sql.append("INSERT INTO `data` (`channel_id`, `timestamp`, `value`) VALUES ((SELECT `id` FROM `entities` WHERE `uuid` LIKE '" + uuid + "' LIMIT 1), '" + str(timestamp) + "', '" + str(value["value"]) + "')")
+                        
+                        #if (len(sql) > 0):
+                        #    print((';\n'.join(sql)), flush=True)
+                        #    result = cursor.execute((';\n'.join(sql)), multi=True)
+                        #    sql_connection.commit()
+                        #    try:
+                        #        for record in result:
+                        #            print(record)
+                        #    except RuntimeError:
+                        #        pass    # TODO / FIXME: try to not raise StopIteration exception
+                    
+                    except ConnectionResetError as e:
+                        raise e     # re-raise the error to catch outside
+                    
+                    old_data = new_data
             
-            old_data = new_data
+        except ConnectionResetError:
+            print("Lost connection to telnet server, trying to reconnect...", file=sys.stderr, flush=True)
+        except:
+            print("Unexpected error:", sys.exc_info(), file=sys.stderr, flush=True)
+            print(traceback.format_exc(), file=sys.stderr, flush=True)
+            raise
+        
+        time.sleep(5)   # sleep 5 seconds before reconnect to avoid flooding
+    
     cursor.close()
 
 
