@@ -12,6 +12,8 @@ import time
 import sys
 import traceback
 import datetime
+from influxdb_client import InfluxDBClient, Point, WritePrecision
+from influxdb_client.client.write_api import SYNCHRONOUS
 
 
 def parse_line(line_string, channel_infos):
@@ -142,6 +144,34 @@ def connect_and_log_data(ip_address, channel_infos, channel_config, sql_connecti
         time.sleep(5)   # sleep 5 seconds before reconnect to avoid flooding
     
     cursor.close()
+
+
+def connect_and_log_data_influx(ip_address, channel_infos, channel_config, influx_credentials):
+    old_data = {}
+    
+    while True:
+        try:
+            with InfluxDBClient(url=influx_credentials["url"], token=influx_credentials["token"], org=influx_credentials["org"]) as influx_client:
+                write_api = influx_client.write_api(write_options=SYNCHRONOUS)
+                
+                with Telnet(ip_address, 23) as tn:
+                    while True:
+                        data_str = tn.read_until(b"\n").decode('ascii').strip()
+                        new_data = parse_line(data_str, channel_infos)
+                        dataset = [];
+                        for key, value in new_data.items():
+                            dataset.append(key.replace(" ","_") + "=" + str(value["value"]))
+                        query = "allData " + ",".join(dataset)
+                        write_api.write(influx_credentials["bucket"], influx_credentials["org"], query)
+                
+        except ConnectionResetError:
+            print(str(datetime.datetime.now()) + ": Lost connection to telnet server, trying to reconnect...", file=sys.stderr, flush=True)
+        except:
+            print("Unexpected error:", sys.exc_info(), file=sys.stderr, flush=True)
+            print(traceback.format_exc(), file=sys.stderr, flush=True)
+            raise
+        
+        time.sleep(5)   # sleep 5 seconds before reconnect to avoid flooding
 
 
 def import_config_file(filename):
