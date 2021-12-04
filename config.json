@@ -16,7 +16,7 @@
             "properties": {
                 "unit": "",                 // Will be automatically filled
                 "color": "aqua",            // see https://wiki.volkszaehler.org/software/middleware/einrichtung
-                "style": "lines",           // see https://wiki.volkszaehler.org/software/middleware/einrichtung
+                "style": "states",          // see https://wiki.volkszaehler.org/software/middleware/einrichtung
                 "fillstyle": 0,             // see https://wiki.volkszaehler.org/software/middleware/einrichtung
                 "yaxis": "auto",            // see https://wiki.volkszaehler.org/software/middleware/einrichtung
                 "public": 0                 // see https://wiki.volkszaehler.org/software/middleware/einrichtung
