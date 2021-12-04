@@ -11,6 +11,7 @@ from mysql.connector.cursor import MySQLCursor
 import time
 import sys
 import traceback
+import datetime
 
 
 def parse_line(line_string, channel_infos):
@@ -132,7 +133,7 @@ def connect_and_log_data(ip_address, channel_infos, channel_config, sql_connecti
                     old_data = new_data
             
         except ConnectionResetError:
-            print("Lost connection to telnet server, trying to reconnect...", file=sys.stderr, flush=True)
+            print(str(datetime.datetime.now()) + ": Lost connection to telnet server, trying to reconnect...", file=sys.stderr, flush=True)
         except:
             print("Unexpected error:", sys.exc_info(), file=sys.stderr, flush=True)
             print(traceback.format_exc(), file=sys.stderr, flush=True)
