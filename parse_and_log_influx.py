@@ -8,10 +8,6 @@ influx_cred = { "url": "http://homeserver:8086",
                 "bucket": "Hargassner" }
 
 
-# Open database connection
-#print("Opening database connection", flush=True)
-#db = mysql.connector.connect(host='localhost', database='volkszaehler', user='volkszaehler', password='meinPasswort', use_pure=True) # use pure Python implementation
-
 print("Parsing header information from 'test\\xml\\Full.DAQ'", flush=True)
 channel_infos = hargassner.parse_header_information("test\\xml\\Full.DAQ")
 
