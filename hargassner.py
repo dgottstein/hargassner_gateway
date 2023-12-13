@@ -166,7 +166,7 @@ def connect_and_log_data_influx(ip_address, channel_infos, channel_config, influ
                         for key, value in new_data.items():
                             dataset.append(key.replace(" ","_") + "=" + str(value["value"]))
                         query = "allData " + ",".join(dataset)
-                        write_api.write(influx_credentials["bucket"], influx_credentials["org"], query)
+                        write_api.write(influx_credentials["bucket"], influx_credentials["org"], query, write_precision='ms')
                         print(".", end='', flush=True) # debug
                 
         except ConnectionResetError:
