@@ -14,6 +14,17 @@ import traceback
 import datetime
 from influxdb_client import InfluxDBClient, Point, WritePrecision
 from influxdb_client.client.write_api import SYNCHRONOUS
+from paho.mqtt import client as mqtt_client
+import logging
+
+
+
+# MQTT:
+FIRST_RECONNECT_DELAY = 1
+RECONNECT_RATE = 2
+MAX_RECONNECT_COUNT = 12
+MAX_RECONNECT_DELAY = 60
+
 
 
 def parse_line(line_string, channel_infos):
@@ -177,6 +188,82 @@ def connect_and_log_data_influx(ip_address, channel_infos, channel_config, influ
             raise
         
         time.sleep(5)   # sleep 5 seconds before reconnect to avoid flooding
+
+
+def connect_and_log_data_mqtt(ip_address, channel_infos, mqtt_credentials):
+    old_data = {}
+    
+    print(str(datetime.datetime.now()) + ": Debug: connect_and_log_data_mqtt()", flush=True)
+    
+    client = connect_mqtt(mqtt_credentials)
+    base_topic = "hargassner/all_values/"
+    
+    old_data = {}
+    new_data = {}
+    
+    while True:
+        try:
+            logging.info("(Re)Starting...")
+            
+            with Telnet(ip_address, 23) as tn:
+                print(str(datetime.datetime.now()) + ": Connected to Hargassner telnet server at " + ip_address + ".", flush=True)
+                while True:
+                    data_str = tn.read_until(b"\n").decode('ascii').strip()
+                    old_data = new_data
+                    new_data = parse_line(data_str, channel_infos)
+                    diff_data = compare_parsed_data(old_data, new_data)
+                    dataset = [];
+                    for key, value in diff_data.items():
+                        cur_topic = base_topic + key.replace(" ","_")
+                        msg = value["value"]
+                        
+                        result = client.publish(cur_topic, msg)
+                        status = result[0]
+                        if status == 0:
+                            logging.info(f"Send `{msg}` to topic `{cur_topic}`")
+                        else:
+                            logging.warning(f"Failed to send message to topic {cur_topic}")
+                
+        except ConnectionResetError:
+            print(str(datetime.datetime.now()) + ": Lost connection to telnet server, trying to reconnect...", file=sys.stderr, flush=True)
+        except:
+            print("Unexpected error:", sys.exc_info(), file=sys.stderr, flush=True)
+            print(traceback.format_exc(), file=sys.stderr, flush=True)
+            raise
+
+
+def connect_mqtt(mqtt_credentials):
+    def on_mqtt_connect(client, userdata, flags, rc):
+        if rc == 0:
+            logging.info("Connected to MQTT Broker!")
+        else:
+            prlogging.error("Failed to connect, return code %d\n", rc)
+    # Set Connecting Client ID
+    client = mqtt_client.Client(mqtt_credentials["cliend_id"])
+    client.username_pw_set(mqtt_credentials["username"], mqtt_credentials["password"])
+    client.on_connect = on_mqtt_connect
+    client.on_disconnect = on_mqtt_disconnect
+    client.connect(mqtt_credentials["broker"], mqtt_credentials["port"])
+    return client
+
+def on_mqtt_disconnect(client, userdata, rc):
+    logging.info("Disconnected with result code: %s", rc)
+    reconnect_count, reconnect_delay = 0, FIRST_RECONNECT_DELAY
+    while reconnect_count < MAX_RECONNECT_COUNT:
+        logging.info("Reconnecting in %d seconds...", reconnect_delay)
+        time.sleep(reconnect_delay)
+
+        try:
+            client.reconnect()
+            logging.info("Reconnected successfully!")
+            return
+        except Exception as err:
+            logging.error("%s. Reconnect failed. Retrying...", err)
+
+        reconnect_delay *= RECONNECT_RATE
+        reconnect_delay = min(reconnect_delay, MAX_RECONNECT_DELAY)
+        reconnect_count += 1
+    logging.info("Reconnect failed after %s attempts. Exiting...", reconnect_count)
 
 
 def import_config_file(filename):
