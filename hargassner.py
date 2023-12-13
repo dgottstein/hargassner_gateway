@@ -191,17 +191,16 @@ def connect_and_log_data_influx(ip_address, channel_infos, channel_config, influ
 
 
 def connect_and_log_data_mqtt(ip_address, channel_infos, mqtt_credentials):
-    old_data = {}
-    
-    print(str(datetime.datetime.now()) + ": Debug: connect_and_log_data_mqtt()", flush=True)
+    logging.debug("connect_and_log_data_mqtt()")
     
     client = connect_mqtt(mqtt_credentials)
-    base_topic = "hargassner/all_values/"
+    base_topic = "hargassner/" + str(ip_address).upper() + "/"
     
     old_data = {}
     new_data = {}
+    stopNow = False
     
-    while True:
+    while not stopNow:
         try:
             logging.info("(Re)Starting...")
             
@@ -226,6 +225,9 @@ def connect_and_log_data_mqtt(ip_address, channel_infos, mqtt_credentials):
                 
         except ConnectionResetError:
             print(str(datetime.datetime.now()) + ": Lost connection to telnet server, trying to reconnect...", file=sys.stderr, flush=True)
+        except KeyboardInterrupt:
+            stopNow = True
+            print(str(datetime.datetime.now()) + ": Stopped because of KeyboardInterrupt...", file=sys.stderr, flush=True)
         except:
             print("Unexpected error:", sys.exc_info(), file=sys.stderr, flush=True)
             print(traceback.format_exc(), file=sys.stderr, flush=True)
