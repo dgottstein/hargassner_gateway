@@ -216,7 +216,7 @@ def connect_and_log_data_mqtt(ip_address, channel_infos, mqtt_credentials):
                         cur_topic = base_topic + key.replace(" ","_")
                         msg = value["value"]
                         
-                        result = client.publish(cur_topic, msg)
+                        result = client.publish(cur_topic, msg, retain=True)
                         status = result[0]
                         if status == 0:
                             logging.info(f"Send `{msg}` to topic `{cur_topic}`")
@@ -240,32 +240,32 @@ def connect_mqtt(mqtt_credentials):
             logging.info("Connected to MQTT Broker!")
         else:
             prlogging.error("Failed to connect, return code %d\n", rc)
+    
+    def on_mqtt_disconnect(client, userdata, rc):
+        logging.info("Disconnected with result code: %s", rc)
+        reconnect_count, reconnect_delay = 0, FIRST_RECONNECT_DELAY
+        while reconnect_count < MAX_RECONNECT_COUNT:
+            logging.info("Reconnecting in %d seconds...", reconnect_delay)
+            time.sleep(reconnect_delay)
+            try:
+                client.reconnect()
+                logging.info("Reconnected successfully!")
+                return
+            except Exception as err:
+                logging.error("%s. Reconnect failed. Retrying...", err)
+            reconnect_delay *= RECONNECT_RATE
+            reconnect_delay = min(reconnect_delay, MAX_RECONNECT_DELAY)
+            reconnect_count += 1
+        logging.info("Reconnect failed after %s attempts. Exiting...", reconnect_count)
+    
     # Set Connecting Client ID
-    client = mqtt_client.Client(mqtt_credentials["cliend_id"])
+    client = mqtt_client.Client(mqtt_credentials["cliend_id"], clean_session=False)
     client.username_pw_set(mqtt_credentials["username"], mqtt_credentials["password"])
     client.on_connect = on_mqtt_connect
     client.on_disconnect = on_mqtt_disconnect
     client.connect(mqtt_credentials["broker"], mqtt_credentials["port"])
     return client
 
-def on_mqtt_disconnect(client, userdata, rc):
-    logging.info("Disconnected with result code: %s", rc)
-    reconnect_count, reconnect_delay = 0, FIRST_RECONNECT_DELAY
-    while reconnect_count < MAX_RECONNECT_COUNT:
-        logging.info("Reconnecting in %d seconds...", reconnect_delay)
-        time.sleep(reconnect_delay)
-
-        try:
-            client.reconnect()
-            logging.info("Reconnected successfully!")
-            return
-        except Exception as err:
-            logging.error("%s. Reconnect failed. Retrying...", err)
-
-        reconnect_delay *= RECONNECT_RATE
-        reconnect_delay = min(reconnect_delay, MAX_RECONNECT_DELAY)
-        reconnect_count += 1
-    logging.info("Reconnect failed after %s attempts. Exiting...", reconnect_count)
 
 
 def import_config_file(filename):
