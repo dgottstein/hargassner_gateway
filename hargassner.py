@@ -25,6 +25,9 @@ RECONNECT_RATE = 2
 MAX_RECONNECT_COUNT = 12
 MAX_RECONNECT_DELAY = 60
 
+# MQTT / Influx:
+REPEAT_COMPLETE_INTERVAL_S = 60
+
 
 
 def parse_line(line_string, channel_infos):
@@ -159,10 +162,14 @@ def connect_and_log_data(ip_address, channel_infos, channel_config, sql_connecti
 
 def connect_and_log_data_influx(ip_address, channel_infos, channel_config, influx_credentials):
     old_data = {}
+    new_data = {}
+    stopNow = False
+    
+    repeatCompleteNext = datetime.datetime.now()
     
     print(str(datetime.datetime.now()) + ": Debug: connect_and_log_data_influx()", flush=True)
     
-    while True:
+    while not stopNow:
         try:
             with InfluxDBClient(url=influx_credentials["url"], token=influx_credentials["token"], org=influx_credentials["org"]) as influx_client:
                 print(str(datetime.datetime.now()) + ": Connected to InfluxDB at " + influx_credentials["url"] + ".", flush=True)
@@ -170,18 +177,33 @@ def connect_and_log_data_influx(ip_address, channel_infos, channel_config, influ
                 
                 with Telnet(ip_address, 23) as tn:
                     print(str(datetime.datetime.now()) + ": Connected to Hargassner telnet server at " + ip_address + ".", flush=True)
-                    while True:
+                    while not stopNow:
                         data_str = tn.read_until(b"\n").decode('ascii').strip()
+                        old_data = new_data
                         new_data = parse_line(data_str, channel_infos)
-                        dataset = [];
-                        for key, value in new_data.items():
-                            dataset.append(key.replace(" ","_") + "=" + str(value["value"]))
-                        query = "allData " + ",".join(dataset)
-                        write_api.write(influx_credentials["bucket"], influx_credentials["org"], query, write_precision='ms')
-                        print(".", end='', flush=True) # debug
+                        
+                        if datetime.datetime.now() > repeatCompleteNext:
+                            old_data = {}
+                            repeatCompleteNext = datetime.datetime.now() + datetime.timedelta(seconds=REPEAT_COMPLETE_INTERVAL_S)
+                            print("#", end='', flush=True) # debug
+                        else:
+                            print(".", end='', flush=True) # debug
+                        
+                        diff_data = compare_parsed_data(old_data, new_data)
+                        dataset = []
+                        if len(diff_data) > 0:
+                            for key, value in diff_data.items():
+                                dataset.append(key.replace(" ","_") + "=" + str(value["value"]))
+                            query = "allData " + ",".join(dataset)
+                            write_api.write(influx_credentials["bucket"], influx_credentials["org"], query, write_precision='ms')
+                        else:
+                            print("-", end='', flush=True) # debug
                 
         except ConnectionResetError:
             print(str(datetime.datetime.now()) + ": Lost connection to telnet server, trying to reconnect...", file=sys.stderr, flush=True)
+        except KeyboardInterrupt:
+            stopNow = True
+            print(str(datetime.datetime.now()) + ": Stopped because of KeyboardInterrupt...", file=sys.stderr, flush=True)
         except:
             print("Unexpected error:", sys.exc_info(), file=sys.stderr, flush=True)
             print(traceback.format_exc(), file=sys.stderr, flush=True)
@@ -200,6 +222,8 @@ def connect_and_log_data_mqtt(ip_address, channel_infos, mqtt_credentials):
     new_data = {}
     stopNow = False
     
+    repeatCompleteNext = datetime.datetime.now()
+    
     while not stopNow:
         try:
             logging.info("(Re)Starting...")
@@ -210,8 +234,12 @@ def connect_and_log_data_mqtt(ip_address, channel_infos, mqtt_credentials):
                     data_str = tn.read_until(b"\n").decode('ascii').strip()
                     old_data = new_data
                     new_data = parse_line(data_str, channel_infos)
-                    diff_data = compare_parsed_data(old_data, new_data)
-                    dataset = [];
+                    if datetime.datetime.now() > repeatCompleteNext:
+                        diff_data = new_data
+                        repeatCompleteNext = datetime.datetime.now() + datetime.timedelta(seconds=REPEAT_COMPLETE_INTERVAL_S)
+                    else:
+                        diff_data = compare_parsed_data(old_data, new_data)
+                    
                     for key, value in diff_data.items():
                         cur_topic = base_topic + key.replace(" ","_")
                         msg = value["value"]
