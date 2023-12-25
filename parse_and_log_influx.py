@@ -19,5 +19,4 @@ print("Connecting to and logging data from 'HSV1'", flush=True)
 hargassner.connect_and_log_data_influx(ip_address='HSV1.stein', channel_infos=channel_infos, channel_config=channel_config, influx_credentials=influx_cred)
 
 print("Closing database connection", flush=True)
-db.close();
 
