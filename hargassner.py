@@ -234,12 +234,12 @@ def connect_and_log_data_mqtt(ip_address, channel_infos, mqtt_credentials):
                     data_str = tn.read_until(b"\n").decode('ascii').strip()
                     old_data = new_data
                     new_data = parse_line(data_str, channel_infos)
-                    if datetime.datetime.now() > repeatCompleteNext:
-                        diff_data = new_data
-                        repeatCompleteNext = datetime.datetime.now() + datetime.timedelta(seconds=REPEAT_COMPLETE_INTERVAL_S)
-                    else:
-                        diff_data = compare_parsed_data(old_data, new_data)
                     
+                    if datetime.datetime.now() > repeatCompleteNext:
+                        old_data = {}
+                        repeatCompleteNext = datetime.datetime.now() + datetime.timedelta(seconds=REPEAT_COMPLETE_INTERVAL_S)
+                    
+                    diff_data = compare_parsed_data(old_data, new_data)
                     for key, value in diff_data.items():
                         cur_topic = base_topic + key.replace(" ","_")
                         msg = value["value"]
