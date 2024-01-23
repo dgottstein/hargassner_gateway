@@ -1,13 +1,6 @@
 import hargassner
 import sys, traceback, mysql
 
-# You can generate an API token from the "API Tokens Tab" in the UI
-influx_cred = { "url": "http://homeserver:8086",
-                "token": "meinToken",
-                "org": "Home",
-                "bucket": "Hargassner" }
-
-
 # Open database connection
 print("Opening database connection", flush=True)
 db = mysql.connector.connect(host='localhost', database='volkszaehler', user='volkszaehler', password='meinPasswort', use_pure=True) # use pure Python implementation
